@@ -1,6 +1,6 @@
 experiments/model_files/
 experiments/scripts/LOGs/
-experiments/src/config.py
+src/config.py
 
 saved/
 backups/
