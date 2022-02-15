@@ -1,0 +1,1 @@
+This is a directory frameowrk for running sequential classification tasks. Three architectures will be considered in this project
