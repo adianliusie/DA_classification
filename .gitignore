@@ -1,12 +1,12 @@
-experiments/model_files/
-experiments/scripts/LOGs/
+experiments/
 src/config.py
+data/
+
+!data/*/standard/*
 
 saved/
 backups/
 temp.ipynb
-data/swda/swda_github
-data/swda/id_splits/
 
 */.ipynb_checkpoints/
 .ipynb_checkpoints/
