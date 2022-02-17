@@ -1,6 +1,7 @@
 experiments/
 src/config.py
 data/
+debug/
 
 !data/*/standard/*
 

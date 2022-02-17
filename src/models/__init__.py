@@ -1,1 +1,1 @@
-from .models import TransformerHead, Seq2SeqWrapper
+from .model_utils import make_model

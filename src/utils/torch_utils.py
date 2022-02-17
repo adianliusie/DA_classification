@@ -45,7 +45,7 @@ def make_scheduler(optimizer, mode:str, steps:int=None, **kwargs):
     if mode == 'triangular':
         scheduler = LambdaLR(optimizer, lr_lambda=triangle(steps))
     elif mode == 'step':
-        scheduler = StepLR(optimizer, step_size=1, gamma=0.1)
+        scheduler = StepLR(optimizer, step_size=5, gamma=0.5)
     return scheduler 
 
 

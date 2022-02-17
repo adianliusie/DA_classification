@@ -43,7 +43,8 @@ class Batcher():
         output = []
         for conv in data:
             if config.debug:
-                conv.utts = conv.utts[:random.randint(35,40)]
+                conv.utts = conv.utts[:random.randint(30,35)]
+            
             utt_ids_1 = [utt.ids[1:] for utt in conv.utts[1:]]
             conv_ids  = conv.utts[0].ids + flatten(utt_ids_1)
             labels    = [utt.label for utt in conv.utts]
@@ -82,8 +83,10 @@ class Batcher():
         """each input is input ids and mask for utt, + label"""
         ids, labels = zip(*batch)  
         ids, mask = self._get_padded_ids(ids)
-        if self.mode == 'seq2seq':   labels = self._pad_labels(labels)
-        elif self.mode == 'encoder': labels = self._mask_labels(labels, ids)
+        
+        if self.mode == 'context': labels = self._mask_labels(labels, ids)
+        else: labels = self._pad_labels(labels)
+
         labels = torch.LongTensor(labels).to(self.device)
         return SimpleNamespace(ids=ids, mask=mask, labels=labels)
     

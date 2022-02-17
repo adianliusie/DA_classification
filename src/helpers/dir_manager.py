@@ -49,11 +49,18 @@ class DirManager:
                     f.write(str(i) + ' ')
                 f.write('\n')
         return log
-                       
-    def load_args(self, name:str='system_cfg')->SimpleNamespace:
-        args = load_json(f'{self.path}/{name}.json')
-        return SimpleNamespace(**args)
-
+    
     @property
     def path(self):
         return f'{BASE_DIR}/{self.exp_name}'
+
+    @classmethod
+    def load_dir(cls, exp_name:str)->'DirManager':
+        dir_manager = cls.__new__(cls)
+        dir_manager.exp_name = exp_name
+        return dir_manager
+    
+    def load_args(self, name:str)->SimpleNamespace:
+        args = load_json(f'{self.path}/{name}.json')
+        return SimpleNamespace(**args)
+           

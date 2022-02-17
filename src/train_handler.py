@@ -9,9 +9,9 @@ from tqdm.notebook import tqdm
 from transformers import LEDForConditionalGeneration
 
 from .helpers import ConvHandler, Batcher, DirManager
-from .utils import (no_grad, toggle_grad, get_transformer,
-                    make_optimizer, make_scheduler)
-from .models import TransformerHead, Seq2SeqWrapper
+from .utils import (no_grad, toggle_grad, make_optimizer, 
+                    make_scheduler)
+from .models import make_model
 
 class TrainHandler:
     """"base class for running all sequential sentence/utterance 
@@ -31,16 +31,20 @@ class TrainHandler:
         self.mode = args.mode
         
         self.C = ConvHandler(label_path=args.label_path, 
-                             system=args.system, punct=args.punct, 
-                             action=args.action, hes=args.hes)
+                             system=args.system, 
+                             punct=args.punct, 
+                             action=args.action, 
+                             hes=args.hes)
 
         train = self.C.prepare_data(path=args.train_path, lim=args.lim)
         if args.dev_path:
             dev = self.C.prepare_data(path=args.dev_path, lim=args.lim)
 
         self.batcher = Batcher(args.mode, args.max_len)
-        self.model = self.make_model(system=args.system, 
-                                     num_labels=args.num_labels)
+        self.model = make_model(system = args.system, 
+                                mode = args.mode,
+                                num_labels = args.num_labels, 
+                                extra_args = self.C.tokenizer.eos_token_id)
 
         self.device = args.device
         self.to(self.device)
@@ -83,17 +87,16 @@ class TrainHandler:
                             
             if args.dev_path:
                 logger = np.zeros(3)
-
                 self.model.eval()
                 dev_batches = self.batcher.batches(dev, args.bsz, shuf=True)
                 for k, batch in enumerate(dev_batches, start=1):
                     output = self.model_output(batch, no_grad=True)
                     logger += [output.loss.item(), output.hits, output.num_preds]
-                    
+                   
                 loss = logger[0]/k
                 acc = logger[1]/logger[2]
                 self.dir.log(f'\n DEV {epoch:<3}  loss:{loss:.3f}  acc:{acc:.3f}')
-                             
+      
                 if acc > best_metric:
                     self.save_model()
                     best_metric = acc
@@ -109,34 +112,26 @@ class TrainHandler:
     def model_output(self, batch):
         """flexible method for dealing with different set ups. 
            Returns loss and accuracy statistics"""
+        
         if self.mode == 'seq2seq':
             output = self.model(input_ids=batch.ids, attention_mask=batch.mask, 
                                 labels=batch.labels)
             loss = output.loss
             hits = torch.argmax(output.logits, dim=-1) == batch.labels
             hits = torch.sum(hits[batch.labels != -100]).item()
+  
+        if self.mode == 'encoder':
+            y = self.model(ids=batch.ids, mask=batch.mask, )
+            loss = F.cross_entropy(y.view(-1, y.size(2)), batch.labels.view(-1))
+            hits = torch.argmax(y, dim=-1) == batch.labels
+            hits = torch.sum(hits[batch.labels != -100]).item()
             
         if self.mode == 'context':
             y = self.model(input_ids=batch.ids, attention_mask=batch.mask)
             loss = F.cross_entropy(y, batch.labels)
 
-        if self.mode == 'encoder':
-            y = self.model(input_ids=batch.ids, attention_mask=batch.mask)
-            loss = F.cross_entropy(y, batch.labels)
-
         num_preds = torch.sum(batch.labels != -100).item()
         return SimpleNamespace(loss=loss, hits=hits, num_preds=num_preds)
-
-    def make_model(self, system, num_labels=None)->torch.nn.Module:
-        """ creates the sequential classification model """
-        transformer = get_transformer(system)
-        if self.mode == 'seq2seq':
-            model = Seq2SeqWrapper(transformer, num_labels)
-        if self.mode == 'context':
-            model = TransformerHead(transformer)
-        if self.mode == 'encoder':
-            model = TransformerHead(transformer)
-        return model
 
     #############   SAVING AND LOADING    #############
     
@@ -148,15 +143,6 @@ class TrainHandler:
 
     def load_model(self, name='base'):
         self.model.load_state_dict(torch.load(self.dir.path + f'/models/{name}.pt'))
-
-    def load_model_2(self, name='base'):
-        config = self.dir.load_args('train_args')
-        self.system, self.mode = args.system, args.mode
-        self.model = self.create_model(config, 43)
-        self.act_model.load_state_dict(torch.load(self.L.path + f'/models/{name}_act.pt'))
-
-        self.act_batcher = DActsBatcher(config.mode, config.mode_arg, config.max_len)
-        self.mode = config.mode 
 
     def to(self, device):
         if hasattr(self, 'model'):   self.model.to(device)
