@@ -59,9 +59,9 @@ def Seq2SeqWrapper(transformer, num_class):
     num_tokens = num_class+3
     
     #updating config details    
-    transformer.config.vocab_size = num_tokens
+    transformer.config.vocab_size = num_tokens #careful as this attr for both encoder and decoder
     transformer.config.decoder_start_token_id = start_idx
-    transformer.config. y = pad_idx
+    #transformer.config.pad_token_id = pad_idx
     
     #reducing embedding matrix to new decoder vocab
     d_model = transformer.config.d_model

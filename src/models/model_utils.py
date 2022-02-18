@@ -4,7 +4,7 @@ from .models import TransformerHead, Seq2SeqWrapper, SequenceTransformer
 from ..utils import get_transformer
 
 def make_model(system, mode:str, num_labels:int=None, 
-               extra_args=None)->torch.nn.Module:
+               extra=None)->torch.nn.Module:
     """ creates the sequential classification model """
     transformer = get_transformer(system)
     if mode == 'seq2seq':

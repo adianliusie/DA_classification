@@ -51,7 +51,7 @@ class ConvHandler:
         
         self.label_to_tok = None
 
-    def prepare_data(self, path:str, lim):
+    def prepare_data(self, path:str, lim:int=None):
         """ Given path, will load and process data for downstream tasks """
         # if json, convert data to Conversation object used by system
         if path.split('.')[-1] == 'json':
@@ -83,14 +83,6 @@ class ConvHandler:
             for utt in self.utts:
                 utt.label_name = self.label_dict[utt.label]
                 
-    def add_labels_to_vocab(self, num_labels):
-        """method which adds labels to tokenizer"""
-        if not self.label_to_tok:
-            self.label_to_tok = {}
-            for i in range(num_labels):
-                self.tokenizer.add_tokens([f'[LAB_{i}]'], special_tokens=True)
-                self.label_to_tok[i] = self.tokenizer(f'[LAB_{i}]').input_ids[1]
-
     def __getitem__(self, x:str):
         """ returns conv with a given conv_id if exists in dataset """
         for conv in self.data:
@@ -126,12 +118,14 @@ class TextCleaner:
 
     @staticmethod
     def hesitation(text:str)->str:
-        """internal function which converts hesitation to standard ones"""
-        hes_maps = {"umhum":"um", "uh-huh":"um", "uhhuh":"um", "hum":"um", "uh":'um'}
+        """internal function to converts hesitation"""
+        hes_maps = {"umhum":"um", "uh-huh":"um", 
+                    "uhhuh":"um", "hum":"um", "uh":'um'}
 
         for h1, h2 in hes_maps.items():
             if h1 in text:
                 pattern = r'(^|[^a-zA-z])'+h1+r'($|[^a-zA-Z])'
                 text = re.sub(pattern, r'\1'+h2+r'\2', text)
-                text = re.sub(pattern, r'\1'+h2+r'\2', text) #twice as uh uh share middle character
+                #run line twice as uh uh share middle character
+                text = re.sub(pattern, r'\1'+h2+r'\2', text)
         return text 

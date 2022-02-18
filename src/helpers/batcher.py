@@ -9,11 +9,12 @@ from ..config import config
 class Batcher():
     """base batching helper class to be inherited"""
 
-    def __init__(self, mode:'str', max_len:int=None):
+    def __init__(self, mode:'str', num_labels:int=None, max_len:int=None):
         self.mode = mode
         self.max_len = max_len
         self.device = torch.device('cpu')
-
+        self.num_labels = num_labels
+        
     def batches(self, convH:'ConvHelper', bsz:int=2, shuf:bool=False):
         """batches an entire conversation, and provides conv id"""
         convs = self._prep_convs(convH)
@@ -92,8 +93,9 @@ class Batcher():
     
     def _pad_labels(self, labels:list):
         """pads labels for batch so that all sequences are of the same len"""
+        end_tok = self.num_labels + 1
         max_len = max([len(x) for x in labels])
-        padded_labels = [x + [-100]*(max_len-len(x)) for x in labels]
+        padded_labels = [x + [end_tok] + [-100]*(max_len-len(x)) for x in labels]
         return padded_labels
         
     def _get_padded_ids(self, ids:list):
@@ -104,9 +106,10 @@ class Batcher():
         ids = torch.LongTensor(padded_ids).to(self.device)
         mask = torch.FloatTensor(mask).to(self.device)
         return ids, mask
+    
+    def __call__(self, convH:'ConvHelper', bsz:int=4, shuf:bool=False):
+        return self.batches(convH, bsz, shuf)
 
-                     
-                 
                  
                  
                  

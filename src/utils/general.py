@@ -29,6 +29,6 @@ def join_namespace(args_1:namedtuple, args_2:namedtuple):
        that aren't in the second into the first"""
     args_1 = copy.deepcopy(args_1)
     for k, v in args_2.__dict__.items():
-        if k not in args_1:
-            setattr(args_1, k, v)
+        if k not in args_1.__dict__:
+            args_1.__dict__[k]=v
     return args_1
