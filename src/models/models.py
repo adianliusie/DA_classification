@@ -1,6 +1,23 @@
 import torch
 import torch.nn as nn
 
+class TransformerHead(torch.nn.Module):
+    """wrapper where a classification head is added to trans"""
+    def __init__(self, transformer, num_class):
+        super().__init__()
+        self.transformer = transformer
+        self.classifier = nn.Linear(768, num_class)
+
+    def forward(self, **kwargs):
+        h   = self.transformer(**kwargs)
+        h_n = h.last_hidden_state[:,0]
+        y   = self.classifier(h_n)
+        return y
+    
+    def get_embeddings(self, input_ids):
+        y = self.transformer.embeddings.word_embeddings(input_ids)
+        return y
+
 class SequenceTransformer(torch.nn.Module):
     """transformer wrapper for sequential classification"""
     def __init__(self, transformer, num_class, sent_id=None):
@@ -9,10 +26,9 @@ class SequenceTransformer(torch.nn.Module):
         self.classifier = nn.Linear(768, num_class)
         self.sent_id = int(sent_id)
         
-    def forward(self, ids, mask):
-        h = self.transformer(input_ids=ids, 
-                             attention_mask=mask).last_hidden_state
-        h_sents = self.get_sent_vectors(ids, h)
+    def forward(self, **kwargs):
+        h = self.transformer(**kwargs)
+        h_sents = self.get_sent_vectors(ids, h.last_hidden_state)
         y = self.classifier(h_sents)
         return y
     
@@ -24,7 +40,6 @@ class SequenceTransformer(torch.nn.Module):
         
         #collect all vectors in each row
         output = [[] for _ in range(len(ids))]
-        
         for conv_num, word_num in sent_pos:
             output[conv_num].append(h[conv_num,word_num].tolist())
 
@@ -35,19 +50,6 @@ class SequenceTransformer(torch.nn.Module):
                                               for row in output]
 
         return torch.FloatTensor(padded_output).to(h.device)
-
-class TransformerHead(torch.nn.Module):
-    """wrapper where a classification head is added to trans"""
-    def __init__(self, transformer, num_class):
-        super().__init__()
-        self.transformer = transformer
-        self.classifier = nn.Linear(768, num_class)
-
-    def forward(self, ids, mask):
-        h   = self.transformer(input_ids=ids, attention_mask=mask)
-        h_n = h1.last_hidden_state[:,0]
-        y   = self.classifier(h_n)
-        return y
 
 def Seq2SeqWrapper(transformer, num_class):
     """encoder-decoder wrapper to change decoder embeddings dim."""

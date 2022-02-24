@@ -45,7 +45,8 @@ class TrainHandler:
 
         self.batcher = Batcher(mode=args.mode, 
                                num_labels=args.num_labels,
-                               max_len=args.max_len)
+                               max_len=args.max_len, 
+                               mode_args=args.mode_args)
         
         self.model = make_model(system = args.system, 
                                 mode = args.mode,
@@ -68,9 +69,9 @@ class TrainHandler:
         for epoch in range(args.epochs):
             logger = np.zeros(3)
             self.model.train()
-            train_batches = self.batcher.batches(train, 
-                                                 bsz=args.bsz, 
-                                                 shuf=True)
+            train_batches = self.batcher(train, 
+                                         bsz=args.bsz, 
+                                         shuf=True)
             
             for k, batch in enumerate(train_batches, start=1):
                 #forward and loss calculation
@@ -102,9 +103,9 @@ class TrainHandler:
                 logger = np.zeros(3)
                 self.model.eval()
                 
-                dev_batches = self.batcher.batches(dev, 
-                                                   bsz=args.bsz, 
-                                                   shuf=True)
+                dev_batches = self.batcher(dev, 
+                                           bsz=args.bsz, 
+                                           shuf=False)
                 
                 for k, batch in enumerate(dev_batches, start=1):
                     output = self.model_output(batch, no_grad=True)
@@ -137,23 +138,26 @@ class TrainHandler:
                                 attention_mask=batch.mask, 
                                 labels=batch.labels)
             loss = output.loss
-            hits = torch.argmax(output.logits, dim=-1) == batch.labels
-            hits = torch.sum(hits[batch.labels != -100]).item()
-  
+            y    = output.logits
+
         if self.mode == 'encoder':
-            y = self.model(ids=batch.ids, mask=batch.mask, )
+            y = self.model(input_ids=batch.ids, 
+                           attention_mask=batch.mask)
             loss = F.cross_entropy(
-                y.view(-1, y.size(2)), batch.labels.view(-1))
-            hits = torch.argmax(y, dim=-1) == batch.labels
-            hits = torch.sum(hits[batch.labels != -100]).item()
-            
+                        y.view(-1, y.size(2)), batch.labels.view(-1)
+                   )
+
         if self.mode == 'context':
             y = self.model(input_ids=batch.ids, 
                            attention_mask=batch.mask)
             loss = F.cross_entropy(y, batch.labels)
 
+        hits = torch.argmax(y, dim=-1) == batch.labels
+        hits = torch.sum(hits[batch.labels != -100]).item()
         num_preds = torch.sum(batch.labels != -100).item()
-        return SimpleNamespace(loss=loss, hits=hits, 
+        return SimpleNamespace(loss=loss, 
+                               logits=y,
+                               hits=hits, 
                                num_preds=num_preds)
 
     #############   SAVING AND LOADING    #############

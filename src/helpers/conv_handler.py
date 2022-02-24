@@ -5,7 +5,8 @@ from tqdm import tqdm
 import json
 import re 
 
-from ..utils import load_json, get_tokenizer, flatten, load_list
+from ..utils import load_json, flatten, load_list
+from ..models import get_tokenizer
 
 class Utterance:
     def __init__(self, text, speaker=None, label=None, tags=None):
@@ -51,7 +52,7 @@ class ConvHandler:
         
         self.label_to_tok = None
 
-    def prepare_data(self, path:str, lim:int=None):
+    def prepare_data(self, path:str, lim:int=None)->List[Conversation]:
         """ Given path, will load and process data for downstream tasks """
         # if json, convert data to Conversation object used by system
         if path.split('.')[-1] == 'json':

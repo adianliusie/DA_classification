@@ -1,7 +1,7 @@
 import torch
 
 from .models import TransformerHead, Seq2SeqWrapper, SequenceTransformer
-from ..utils import get_transformer
+from .hugging_utils import get_transformer
 
 def make_model(system, mode:str, num_labels:int=None, 
                extra=None)->torch.nn.Module:
