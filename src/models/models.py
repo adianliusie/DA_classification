@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from .monkey_patching_led import LEDModelPatched, LEDDecoderPatched
 
 class TransformerHead(torch.nn.Module):
     """wrapper where a classification head is added to trans"""
@@ -14,9 +15,10 @@ class TransformerHead(torch.nn.Module):
         y   = self.classifier(h_n)
         return y
     
-    def get_embeddings(self, input_ids):
-        y = self.transformer.embeddings.word_embeddings(input_ids)
-        return y
+    def get_embeds(self, input_ids):
+        """ gets encoder embeddings for given ids"""
+        embeds = self.transformer.embeddings.word_embeddings(input_ids)
+        return embeds
 
 class SequenceTransformer(torch.nn.Module):
     """transformer wrapper for sequential classification"""
@@ -51,28 +53,43 @@ class SequenceTransformer(torch.nn.Module):
 
         return torch.FloatTensor(padded_output).to(h.device)
 
-def Seq2SeqWrapper(transformer, num_class):
-    """encoder-decoder wrapper to change decoder embeddings dim."""
-    
-    #here the start, end and pad token have ids after all the labels
-    start_idx  = num_class
-    end_idx    = num_class+1
-    pad_idx    = num_class+2
-    num_tokens = num_class+3
-    
-    #updating config details    
-    transformer.config.vocab_size = num_tokens #careful as this attr for both encoder and decoder
-    transformer.config.decoder_start_token_id = start_idx
-    #transformer.config.pad_token_id = pad_idx
-    
-    #reducing embedding matrix to new decoder vocab
-    d_model = transformer.config.d_model
-    transformer.model.decoder.embed_tokens = \
-                           nn.Embedding(num_tokens, d_model, pad_idx)
-    
-    #reformatting the head 
-    transformer.lm_head = nn.Linear(d_model, num_class+3, bias=False)
-    transformer.register_buffer("final_logits_bias", 
-                                torch.zeros((1, num_tokens)))
+class Seq2SeqWrapper(torch.nn.Module):
+    @classmethod 
+    def create(cls, transformer, num_class):
+        """encoder-decoder wrapper to change decoder embeddings dim."""
 
-    return transformer
+        #here the start, end and pad token have ids after all the labels
+        cls.start_idx  = num_class
+        cls.end_idx    = num_class+1
+        cls.pad_idx    = num_class+2
+        cls.num_tokens = num_class+3
+
+        #updating config details    
+        transformer.config.vocab_size = cls.num_tokens #careful as this attr for both encoder and decoder
+        transformer.config.decoder_start_token_id = cls.start_idx
+
+        #reducing embedding matrix to new decoder vocab
+        d_model = transformer.config.d_model
+        transformer.model.decoder.embed_tokens = \
+                    nn.Embedding(cls.num_tokens, d_model, cls.pad_idx)
+
+        #reformatting the head 
+        transformer.lm_head = nn.Linear(d_model, 
+                                        cls.num_tokens, 
+                                        bias=False)
+        transformer.register_buffer("final_logits_bias", 
+                                    torch.zeros((1, cls.num_tokens)))
+        
+        #add Seq2SeqWrapper as a base class
+        trans_cls = transformer.__class__ 
+        transformer.__class__ = type(cls.__name__, (trans_cls, cls), {})
+        return transformer 
+
+    def get_embeds(self, input_ids):
+        """ gets encoder embeddings for given ids"""
+        embeds = self.model.encoder.embed_tokens(input_ids)
+        return embeds
+    
+    def toggle_pos_encoding(self):
+        self.model.__class__ = LEDModelPatched
+        self.model.decoder.__class__ = LEDDecoderPatched

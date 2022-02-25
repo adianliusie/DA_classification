@@ -94,7 +94,7 @@ class EvalHandler(TrainHandler):
             pred = torch.argmax(y, -1)
         
         return pred
-    
+        
     def saliency(self, args:namedtuple, N:int=50, 
                  conv_num:int=0, k:int=0):
         """ generate saliency maps for predictions """
@@ -106,31 +106,41 @@ class EvalHandler(TrainHandler):
         conv = self.C.prepare_data(path=args.test_path)[conv_num]
         conv = self.batcher([conv], bsz=1, shuf=False)
         if self.mode == 'context': conv = conv[k]
-        words = [self.C.tokenizer.decode(i) for i in conv.ids[0]]
+        else:                      conv = conv[0]
+        
+        x = conv.ids[0]
         
         #see prediction details
         y = self.model_output(conv).logits[0]
+        if self.mode in ['seq2seq', 'encoder']: y = y[k]
         pred_idx = torch.argmax(y).item()      
         prob = F.softmax(y, dim=-1)[pred_idx].item()
         print(pred_idx, round(prob, 3))
         
         #using integrated gradients, where we approximate the path 
-        #integral from baselnie to input using riemann sum
+        #integral from baseline to input using riemann sum
         with torch.no_grad():
-            input_embeds = self.model.get_embeddings(conv.ids)
-            base_embeds = torch.zeros_like(input_embeds)
+            input_embeds = self.model.get_embeds(conv.ids) #[1,L,d]
+            base_embeds = torch.zeros_like(input_embeds)   #[1,L,d]
             vec_dir = (input_embeds-base_embeds)
 
             alphas = torch.arange(1, N+1, device=self.device)/N
             line_path = base_embeds + alphas.view(N,1,1)*vec_dir            
-            embed_batches = [line_path[i:i+args.bsz] for i in 
-                             range(0, len(line_path), args.bsz)]
-
+            batches = [line_path[i:i+args.bsz] for i in 
+                       range(0, len(line_path), args.bsz)] #[N,L,d]
+                            
+                
         #Computing the line integral, 
         output = torch.zeros_like(input_embeds)
-        for embed_batch in tqdm(embed_batches):
+        for embed_batch in tqdm(batches):
             embed_batch.requires_grad_(True)
-            y = self.model(inputs_embeds=embed_batch)
+            y = self.model(inputs_embeds=embed_batch,
+                           labels=conv.labels)
+            
+            if self.mode == 'seq2seq':
+                y = y.logits
+                y = y[:,k]
+                
             preds = F.softmax(y, dim=-1)[:,pred_idx]
             torch.sum(preds).backward()
             
@@ -138,8 +148,10 @@ class EvalHandler(TrainHandler):
             output += grads.detach().clone()
 
         #get attribution summed for each word
+        words = [self.C.tokenizer.decode(i) for i in conv.ids[0]]
         tok_attr = torch.sum((output*vec_dir).squeeze(0), dim=-1)/N
         tok_attr = tok_attr.tolist()
+        
         return words, tok_attr
     
     def set_up(self, args):
@@ -151,7 +163,8 @@ class EvalHandler(TrainHandler):
         #load final model
         self.model = make_model(system=args.system, 
                                 mode=args.mode,
-                                num_labels=args.num_labels)
+                                num_labels=args.num_labels, 
+                                extra=args.extra)
         self.load_model()
         self.model.eval()
 
