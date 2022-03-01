@@ -1,6 +1,8 @@
 import torch
 import torch.nn as nn
-from .monkey_patching_led import LEDModelPatched, LEDDecoderPatched
+from .led_patching import (LEDEncoderUttEncode, LEDModelPatched, 
+                           LEDDecoderPatched, 
+                           LEDModelAlpha)
 
 class TransformerHead(torch.nn.Module):
     """wrapper where a classification head is added to trans"""
@@ -55,30 +57,32 @@ class SequenceTransformer(torch.nn.Module):
 
 class Seq2SeqWrapper(torch.nn.Module):
     @classmethod 
-    def create(cls, transformer, num_class):
+    def wrap(cls, transformer, num_class):
         """encoder-decoder wrapper to change decoder embeddings dim."""
 
         #here the start, end and pad token have ids after all the labels
-        cls.start_idx  = num_class
-        cls.end_idx    = num_class+1
-        cls.pad_idx    = num_class+2
-        cls.num_tokens = num_class+3
+        trans = transformer
+        trans.start_idx  = num_class
+        trans.end_idx    = num_class+1
+        trans.pad_idx    = num_class+2
+        trans.num_tokens = num_class+3
 
         #updating config details    
-        transformer.config.vocab_size = cls.num_tokens #careful as this attr for both encoder and decoder
-        transformer.config.decoder_start_token_id = cls.start_idx
+        transformer.config.vocab_size = trans.num_tokens 
+                    #^bad as this attr for both encoder and decoder
+        transformer.config.decoder_start_token_id = trans.start_idx
 
         #reducing embedding matrix to new decoder vocab
         d_model = transformer.config.d_model
         transformer.model.decoder.embed_tokens = \
-                    nn.Embedding(cls.num_tokens, d_model, cls.pad_idx)
+                 nn.Embedding(trans.num_tokens, d_model, trans.pad_idx)
 
         #reformatting the head 
         transformer.lm_head = nn.Linear(d_model, 
-                                        cls.num_tokens, 
+                                        trans.num_tokens, 
                                         bias=False)
         transformer.register_buffer("final_logits_bias", 
-                                    torch.zeros((1, cls.num_tokens)))
+                                    torch.zeros((1, trans.num_tokens)))
         
         #add Seq2SeqWrapper as a base class
         trans_cls = transformer.__class__ 
@@ -89,7 +93,48 @@ class Seq2SeqWrapper(torch.nn.Module):
         """ gets encoder embeddings for given ids"""
         embeds = self.model.encoder.embed_tokens(input_ids)
         return embeds
-    
-    def toggle_pos_encoding(self):
-        self.model.__class__ = LEDModelPatched
-        self.model.decoder.__class__ = LEDDecoderPatched
+
+    def set_setting(self, mode:str):
+        if mode == 'utt_encoder':
+            print('adding utterance embeddings BEFORE encoder')
+            self.model.encoder.__class__ = LEDEncoderUttEncode
+            decoder_pos_embedding = self.model.decoder.embed_positions
+            self.model.encoder.set_up(embeddings=decoder_pos_embedding,
+                                      sep_token=2)
+        elif mode == 'dec_word_encoder': 
+            print('adding word embeddings to decoder')
+            self.model.__class__ = LEDModelPatched
+            self.model.decoder.__class__ = LEDDecoderPatched
+            
+        elif mode == 'pre_decoder':
+            print('adding utterance embeddings AFTER encoder')
+            self.model.__class__ = LEDModelAlpha
+
+        else:
+            print('using baseline seq2seq set up')
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            

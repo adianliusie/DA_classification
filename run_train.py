@@ -5,6 +5,7 @@ from src.config import config
 
 t_path = f"{config.base_dir}/data/swda/standard/train.json"
 d_path = f"{config.base_dir}/data/swda/standard/dev.json"
+l_path = f"{config.base_dir}/data/swda/standard/labels.json"
 
 parser = argparse.ArgumentParser(description='Train Dialogue Act Modelling Model')
 group = parser.add_mutually_exclusive_group(required=True)
@@ -14,17 +15,18 @@ parser.add_argument('--device',   default='cuda',  type=str,  help='device to us
 
 parser.add_argument('--train_path', default=t_path,  type=str,  help='')
 parser.add_argument('--dev_path',   default=d_path,  type=str,  help='')
-parser.add_argument('--label_path', default=False,   type=str,  help='')
+parser.add_argument('--label_path', default=l_path,  type=str,  help='')
 parser.add_argument('--num_labels', default=43,      type=str,  help='')
 
-parser.add_argument('--system',   default='led',     type=str,  help='select system (e.g. bert, roberta etc.)')
-parser.add_argument('--mode',     default='seq2seq', type=str,  help='select model mode (seq2seq, context)')
-parser.add_argument('--mode_args', default=(3,3),    type=int,  help='select model arguments if using context', nargs=2)
+parser.add_argument('--system',      default='led',     type=str,  help='select system (e.g. bert, roberta etc.)')
+parser.add_argument('--system_args', default=None,      type=str,  help='select system arguments')
+parser.add_argument('--mode',        default='seq2seq', type=str,  help='select model mode (seq2seq, context)')
+parser.add_argument('--mode_args',   default=(3,3),     type=int,  help='select model arguments if using context', nargs=2)
 
 parser.add_argument('--lim',     default=None,  type=int,   help='size of data subset to use (for debugging)')
-parser.add_argument('--punct',   default=False, type=bool,  help='whether punctuation should be filtered')
-parser.add_argument('--action',  default=False, type=bool,  help='whether actions should be filtered')
-parser.add_argument('--hes',     default=False, type=bool,  help='whether hesitations should be filtered')
+parser.add_argument('--punct',   action='store_true',       help='whether punctuation should be filtered')
+parser.add_argument('--action',  action='store_true',       help='whether actions should be filtered')
+parser.add_argument('--hes',     action='store_true',       help='whether hesitations should be filtered')
 
 parser.add_argument('--epochs',  default=3,     type=int,   help='numer of epochs to train')
 parser.add_argument('--lr',      default=1e-5,  type=float, help='training learning rate')
@@ -36,7 +38,7 @@ parser.add_argument('--s_args',  default=None,   type=list,  help='scheduler arg
 
 parser.add_argument('--print_len', default=100,   type=int,  help='logging training print size')
 parser.add_argument('--max_len',   default=None,  type=int,  help='training print size for logging')
-parser.add_argument('--class_red', default=False, type=bool, help='')
+parser.add_argument('--class_red', action='store_true',      help='')
 
 if __name__ == '__main__':
     args = parser.parse_args()

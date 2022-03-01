@@ -13,6 +13,7 @@ from src.helpers import ConvHandler, Batcher, DirManager
 from src.models import make_model
 from src.utils import join_namespace, no_grad, Levenshtein
 from .train_handler import TrainHandler
+from .config import config
 
 class EvalHandler(TrainHandler):
     """"base class for running all sequential sentence 
@@ -31,7 +32,9 @@ class EvalHandler(TrainHandler):
         args = self.set_up(args)
 
         #prepare data
-        eval_data = self.C.prepare_data(path=args.test_path)
+        eval_data = self.C.prepare_data(path=args.test_path, 
+                                        lim=args.lim, 
+                                        label_path=args.label_path)
         eval_batches = self.batcher(eval_data, 
                                     bsz=args.bsz, 
                                     shuf=False)
@@ -78,6 +81,7 @@ class EvalHandler(TrainHandler):
         
     def model_free(self, batch):
         if self.mode == 'seq2seq':
+            max_len = config.debug_len if config.debug else 500
             pred = self.model.generate(
                     input_ids=batch.ids, 
                     attention_mask=batch.mask, 
@@ -85,7 +89,7 @@ class EvalHandler(TrainHandler):
                     bos_token_id=self.decoder_start,
                     eos_token_id=self.decoder_end,
                     pad_token_id=self.decoder_pad,
-                    max_length=500
+                    max_length=max_len
                    )
             
         if self.mode == 'context':
@@ -115,7 +119,7 @@ class EvalHandler(TrainHandler):
         if self.mode in ['seq2seq', 'encoder']: y = y[k]
         pred_idx = torch.argmax(y).item()      
         prob = F.softmax(y, dim=-1)[pred_idx].item()
-        print(pred_idx, round(prob, 3))
+        print(self.C.label_dict[pred_idx], round(prob, 3))
         
         #using integrated gradients, where we approximate the path 
         #integral from baseline to input using riemann sum
@@ -127,26 +131,27 @@ class EvalHandler(TrainHandler):
             alphas = torch.arange(1, N+1, device=self.device)/N
             line_path = base_embeds + alphas.view(N,1,1)*vec_dir            
             batches = [line_path[i:i+args.bsz] for i in 
-                       range(0, len(line_path), args.bsz)] #[N,L,d]
-                            
+                       range(0, len(line_path), args.bsz)] #[N,L,d]     
                 
         #Computing the line integral, 
         output = torch.zeros_like(input_embeds)
         for embed_batch in tqdm(batches):
             embed_batch.requires_grad_(True)
-            y = self.model(inputs_embeds=embed_batch,
-                           labels=conv.labels)
             
             if self.mode == 'seq2seq':
-                y = y.logits
-                y = y[:,k]
+                y = self.model(inputs_embeds=embed_batch,
+                               labels=conv.labels)
+                y = y.logits[:,k]
                 
+            if self.mode == 'context':
+                y = self.model(inputs_embeds=embed_batch)
+
             preds = F.softmax(y, dim=-1)[:,pred_idx]
             torch.sum(preds).backward()
             
             grads = torch.sum(embed_batch.grad, dim=0)
             output += grads.detach().clone()
-
+        
         #get attribution summed for each word
         words = [self.C.tokenizer.decode(i) for i in conv.ids[0]]
         tok_attr = torch.sum((output*vec_dir).squeeze(0), dim=-1)/N
@@ -161,12 +166,13 @@ class EvalHandler(TrainHandler):
         self.mode = args.mode
         
         #load final model
-        self.model = make_model(system=args.system, 
-                                mode=args.mode,
-                                num_labels=args.num_labels, 
-                                extra=args.extra)
-        self.load_model()
-        self.model.eval()
+        if not hasattr(self, 'model'):
+            self.model = make_model(system=args.system, 
+                                    mode=args.mode,
+                                    num_labels=args.num_labels, 
+                                    system_args=args.system_args)
+            self.load_model()
+            self.model.eval()
 
         #conversation processing
         self.C = ConvHandler(label_path=args.label_path, 
@@ -182,9 +188,9 @@ class EvalHandler(TrainHandler):
 
         #get start, pad and end token for decoder
         if self.mode == 'seq2seq':
-            self.decoder_start = args.num_labels
-            self.decoder_end   = args.num_labels+1
-            self.decoder_pad   = args.num_labels+2
+            self.decoder_start = self.model.start_idx
+            self.decoder_end   = self.model.end_idx
+            self.decoder_pad   = self.model.pad_idx
             
         #set to device
         self.device = args.device

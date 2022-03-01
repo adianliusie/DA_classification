@@ -51,7 +51,8 @@ class TrainHandler:
         self.model = make_model(system = args.system, 
                                 mode = args.mode,
                                 num_labels = args.num_labels, 
-                                extra = self.C.tokenizer.eos_token_id)
+                                eos_tok = self.C.tokenizer.eos_token_id,
+                                system_args = args.system_args)
 
         self.device = args.device
         self.to(self.device)
@@ -94,9 +95,11 @@ class TrainHandler:
 
                 #print every now and then
                 if k%args.print_len == 0:
-                    self.dir.log(f'{epoch:<3} {k:<5} ',
-                                 f'loss {logger[0]/args.print_len:.3f} ',
-                                 f'acc {logger[1]/logger[2]:.3f}')
+                    loss = f'{logger[0]/args.print_len:.3f}'
+                    acc  = f'{logger[1]/logger[2]:.3f}'
+                    self.dir.update_curve('train', epoch, loss, acc)
+                    self.dir.log(f'{epoch:<3} {k:<5}  ',
+                                 f'loss {loss}   acc {acc}')
                     logger = np.zeros(3)
                             
             if args.dev_path:
@@ -116,7 +119,8 @@ class TrainHandler:
                 acc = logger[1]/logger[2]
                 self.dir.log(f'\n DEV {epoch:<3}   loss:{loss:.3f}   ',
                              f'acc:{acc:.3f}')
-      
+                self.dir.update_curve('dev', epoch, loss, acc)
+
                 if acc > best_metric:
                     self.save_model()
                     best_metric = acc

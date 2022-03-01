@@ -4,7 +4,7 @@ from transformers import BigBirdTokenizer, BigBirdModel
 from transformers import LongformerTokenizerFast, LongformerModel 
 
 from transformers import BartTokenizerFast, BartForConditionalGeneration
-from transformers import LEDTokenizerFast, LEDForConditionalGeneration 
+from transformers import LEDTokenizerFast, LEDForConditionalGeneration, LEDConfig
 
 def get_tokenizer(system):
     ### transformer encoder systems
@@ -14,8 +14,9 @@ def get_tokenizer(system):
     elif system == 'big_bird':   tokenizer = BigBirdTokenizer.from_pretrained('google/bigbird-roberta-base')
     elif system == 'longformer': tokenizer = LongformerTokenizerFast.from_pretrained("allenai/longformer-base-4096")
     ### seq2seq systems
-    elif system == 'bart':       tokenizer = BartTokenizerFast.from_pretrained("facebook/bart-base")
-    elif system == 'led':        tokenizer = LEDTokenizerFast.from_pretrained("allenai/led-base-16384")
+    elif system in ['led', 'led-rand']: tokenizer = LEDTokenizerFast.from_pretrained("allenai/led-base-16384")
+    elif system == 'bart':              tokenizer = BartTokenizerFast.from_pretrained("facebook/bart-base")
+        
     else: raise Exception
     return tokenizer
 
@@ -31,5 +32,8 @@ def get_transformer(system):
     elif system ==  'led': 
         transformer = LEDForConditionalGeneration.from_pretrained("allenai/led-base-16384", return_dict=True)
         #routing transformer.model to transformer.led to standardise naming conventions
+        transformer.__dict__['_modules']['model'] = transformer.__dict__['_modules']['led']
+    elif system ==  'led-rand': 
+        transformer = LEDForConditionalGeneration(LEDConfig(return_dict=True))
         transformer.__dict__['_modules']['model'] = transformer.__dict__['_modules']['led']
     return transformer

@@ -4,7 +4,6 @@ from types import SimpleNamespace
 import random
 
 from ..utils import flatten
-from ..config import config
 
 class Batcher():
     """class that creates batches for training/eval"""
@@ -73,7 +72,6 @@ class Batcher():
         """ data preparation when input is the entire conversation"""
         output = []
         for conv in data:
-            if config.debug: conv.utts = conv.utts[:30]
             utt_ids_1 = [utt.ids[1:] for utt in conv.utts[1:]]
             conv_ids  = conv.utts[0].ids + flatten(utt_ids_1)
             labels    = [utt.label for utt in conv.utts]

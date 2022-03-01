@@ -4,15 +4,14 @@ from .models import TransformerHead, Seq2SeqWrapper, SequenceTransformer
 from .hugging_utils import get_transformer
 
 def make_model(system, mode:str, num_labels:int=None, 
-               extra=None)->torch.nn.Module:
+               eos_tok=None, system_args=False)->torch.nn.Module:
     """ creates the sequential classification model """
     transformer = get_transformer(system)
     if mode == 'seq2seq':
-        model = Seq2SeqWrapper.create(transformer, 
+        model = Seq2SeqWrapper.wrap(transformer, 
                                       num_labels)
-        if extra == 'override':
-            model.toggle_pos_encoding()
-            
+        model.set_setting(system_args)
+        
     if mode == 'context':
         model = TransformerHead(transformer, 
                                 num_labels)

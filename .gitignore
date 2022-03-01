@@ -1,13 +1,9 @@
-experiments/
+scripts/
 src/config.py
 data/
-debug/
+trained_models/
 
 !data/*/standard/*
-
-saved/
-backups/
-temp.ipynb
 
 */.ipynb_checkpoints/
 .ipynb_checkpoints/

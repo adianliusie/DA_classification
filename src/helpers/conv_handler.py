@@ -7,6 +7,7 @@ import re
 
 from ..utils import load_json, flatten, load_list
 from ..models import get_tokenizer
+from ..config import config
 
 class Utterance:
     def __init__(self, text, speaker=None, label=None, tags=None):
@@ -24,7 +25,8 @@ class Conversation:
     def __init__(self, data:dict):
         self.conv_id = str(data['conv_id'])
         self.utts  = [Utterance(**utt) for utt in data['turns']] #should change to utts
-        
+        if config.debug: self.utts = self.utts[:config.debug_len]
+            
         for key, value in data.items():
             if key not in ['turns', 'conv_id']:
                 setattr(self, key, value)
@@ -47,7 +49,7 @@ class ConvHandler:
         
         self.label_dict = None
         if label_path:
-            label_dict = load_json(path)
+            label_dict = load_json(label_path)
             self.label_dict = {int(k):v for k, v in label_dict.items()}
         
         self.label_to_tok = None
@@ -62,7 +64,7 @@ class ConvHandler:
         self.clean_text(data)
         if lim: data = data[:lim]
         if self.system:     self.tok_convs(data)  
-        if self.label_dict: self.get_label_names()
+        if self.label_dict: self.get_label_names(data)
         return data
     
     def clean_text(self, data:List[Conversation]):
@@ -81,7 +83,7 @@ class ConvHandler:
     def get_label_names(self, data:List[Conversation]):
         """ generates detailed label name for each utterance """
         for conv in data:
-            for utt in self.utts:
+            for utt in conv:
                 utt.label_name = self.label_dict[utt.label]
                 
     def __getitem__(self, x:str):
