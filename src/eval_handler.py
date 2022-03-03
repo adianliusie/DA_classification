@@ -7,7 +7,9 @@ import matplotlib.pyplot as plt
 from typing import Tuple
 from tqdm.notebook import tqdm
 
-import time #temp
+#for cross attention plots
+import seaborn as sns
+import matplotlib.pyplot as plt
 
 from src.helpers import ConvHandler, Batcher, DirManager
 from src.models import make_model
@@ -100,7 +102,7 @@ class EvalHandler(TrainHandler):
         return pred
         
     def saliency(self, args:namedtuple, N:int=50, 
-                 conv_num:int=0, k:int=0):
+                 conv_num:int=0, utt_num:int=0):
         """ generate saliency maps for predictions """
         
         #load training arguments, model, batcher etc.
@@ -109,20 +111,17 @@ class EvalHandler(TrainHandler):
         #prepare conversation in interest
         conv = self.C.prepare_data(path=args.test_path)[conv_num]
         conv = self.batcher([conv], bsz=1, shuf=False)
-        if self.mode == 'context': conv = conv[k]
+        if self.mode == 'context': conv = conv[utt_num]
         else:                      conv = conv[0]
-        
-        x = conv.ids[0]
-        
-        #see prediction details
+                
+        #Get details of the max prob prediction
         y = self.model_output(conv).logits[0]
-        if self.mode in ['seq2seq', 'encoder']: y = y[k]
+        if self.mode in ['seq2seq', 'encoder']: y = y[utt_num]
         pred_idx = torch.argmax(y).item()      
         prob = F.softmax(y, dim=-1)[pred_idx].item()
         print(self.C.label_dict[pred_idx], round(prob, 3))
         
-        #using integrated gradients, where we approximate the path 
-        #integral from baseline to input using riemann sum
+        #get InteGrad batches (refer to paper for details)
         with torch.no_grad():
             input_embeds = self.model.get_embeds(conv.ids) #[1,L,d]
             base_embeds = torch.zeros_like(input_embeds)   #[1,L,d]
@@ -159,6 +158,46 @@ class EvalHandler(TrainHandler):
         
         return words, tok_attr
     
+    @no_grad
+    def attention(self, args, conv_num=0, free=False):
+        """ get cross attention scores for a specific conversation """
+        
+        #load training arguments, model, batcher etc.
+        args = self.set_up(args)
+        assert self.mode == 'seq2seq', "visualises cross attentions"
+        
+        #prepare conversation in interest
+        conv = self.C.prepare_data(path=args.test_path)[conv_num]
+        conv = self.batcher([conv], bsz=1, shuf=False)[0]        
+        
+        if free: conv.labels = self.model_free(conv)
+
+        output = self.model(input_ids=conv.ids,
+                            attention_mask=conv.mask, 
+                            labels=conv.labels, 
+                            output_attentions=True)
+        
+        cross_attentions = output.cross_attentions        
+        cross_attentions = [i.squeeze(0) for i in cross_attentions]
+        stacked_attentions = torch.cat(cross_attentions,  dim=0)
+
+        utt_edges = [0] + [k for k, tok in enumerate(conv.ids[0])\
+                          if tok == self.C.tokenizer.eos_token_id]
+        utt_attentions = self.utt_cross_attention(
+                            attentions=stacked_attentions,
+                            utt_edges=utt_edges)
+        
+        return utt_attentions.cpu().numpy()
+    
+    def utt_cross_attention(self, attentions, utt_edges):
+        output = torch.zeros((*attentions.shape[:-1], len(utt_edges)))
+        output[:, :, 0] = attentions[:, :, 0]
+        for k in range(1, len(utt_edges)):
+            st, end = utt_edges[k-1], utt_edges[k]
+            x = torch.sum(attentions[:, :, st+1:end+1], dim=-1)
+            output[:, :, k] = x
+        return output
+                            
     def set_up(self, args):
         #load training arguments and adding to args
         t_args = self.dir.load_args('train_args')
@@ -198,5 +237,3 @@ class EvalHandler(TrainHandler):
 
         return args
     
-
-        

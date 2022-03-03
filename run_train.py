@@ -28,9 +28,9 @@ parser.add_argument('--punct',   action='store_true',       help='whether punctu
 parser.add_argument('--action',  action='store_true',       help='whether actions should be filtered')
 parser.add_argument('--hes',     action='store_true',       help='whether hesitations should be filtered')
 
-parser.add_argument('--epochs',  default=3,     type=int,   help='numer of epochs to train')
+parser.add_argument('--epochs',  default=100,     type=int,   help='numer of epochs to train')
 parser.add_argument('--lr',      default=1e-5,  type=float, help='training learning rate')
-parser.add_argument('--bsz',     default=1,     type=int,   help='training batch size')
+parser.add_argument('--bsz',     default=4,     type=int,   help='training batch size')
 
 parser.add_argument('--optim',   default='adam', type=str,   help='which optimizer to use (adam, adamw)')
 parser.add_argument('--sched',   default=None,   type=str,   help='which scheduler to use (triangle, exponential, step)')

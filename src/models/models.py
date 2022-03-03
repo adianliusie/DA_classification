@@ -95,23 +95,27 @@ class Seq2SeqWrapper(torch.nn.Module):
         return embeds
 
     def set_setting(self, mode:str):
-        if mode == 'utt_encoder':
+        if mode == None:
+            print('using baseline seq2seq set up')
+
+        if mode == 'pre_encoder':
             print('adding utterance embeddings BEFORE encoder')
             self.model.encoder.__class__ = LEDEncoderUttEncode
             decoder_pos_embedding = self.model.decoder.embed_positions
             self.model.encoder.set_up(embeddings=decoder_pos_embedding,
                                       sep_token=2)
-        elif mode == 'dec_word_encoder': 
-            print('adding word embeddings to decoder')
-            self.model.__class__ = LEDModelPatched
-            self.model.decoder.__class__ = LEDDecoderPatched
-            
-        elif mode == 'pre_decoder':
+        elif mode == 'post_encoder': 
             print('adding utterance embeddings AFTER encoder')
             self.model.__class__ = LEDModelAlpha
 
+        elif mode == 'pre_decoder':
+            print('adding word embeddings to decoder')
+            self.model.__class__ = LEDModelPatched
+            self.model.decoder.__class__ = LEDDecoderPatched
+                
         else:
-            print('using baseline seq2seq set up')
+            raise ValueError('Invalid system argument')
+
             
             
             
