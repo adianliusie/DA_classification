@@ -1,14 +1,12 @@
 from transformers.models.led.modeling_led import *
 from transformers.models.led.modeling_led import _make_causal_mask, _expand_mask
 
-class LEDModelAlpha(LEDModel):
-    """ here utt positional encoding added after encoder but before decoder"""
-    
+class LEDModelPosPreDec(LEDModel):
     # >>> added method al826 ########################################################################
     def utt_embeds(self, input_ids): 
         utt_pos = (input_ids==2) #marks utt start positions 
         utt_nums = torch.cumsum(utt_pos, -1) #[bsz, L], marks utt num of each tok
-        utt_embeddings = super(LEDLearnedPositionalEmbedding, self.decoder.embed_positions).forward(utt_nums)
+        utt_embeddings = super(LEDLearnedPositionalEmbedding, self.model.decoder.embed_positions).forward(utt_nums)
         return utt_embeddings
     # <<< added method al826 ########################################################################
 
@@ -58,17 +56,14 @@ class LEDModelAlpha(LEDModel):
             )
         
         # >>> added line al826 ########################################################################
-        utt_embeds = self.utt_embeds(input_ids)
-        encoder_output = encoder_outputs[0] + utt_embeds
+        decoder_input_ids = decoder_input_ids + self.utt_embeds(input_ids)
         # <<< added line al826 ########################################################################
 
         # decoder outputs consists of (dec_features, past_key_value, dec_hidden, dec_attn)
         decoder_outputs = self.decoder(
             input_ids=decoder_input_ids,
             attention_mask=decoder_attention_mask,
-            # >>> added line al826 ########################################################################
-            encoder_hidden_states=encoder_output,                 #encoder_hidden_states=encoder_outputs[0]
-            # <<< added line al826 ########################################################################
+            encoder_hidden_states=encoder_outputs[0],
             encoder_attention_mask=attention_mask,
             head_mask=decoder_head_mask,
             encoder_head_mask=head_mask,

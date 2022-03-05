@@ -8,7 +8,7 @@ from transformers.models.led.modeling_led import _make_causal_mask, _expand_mask
 # All lines added have the tag:    added code block/line al826 #n
 #^the ordering of above is in the order of execution, not line number
 
-class LEDDecoderPatched(LEDPreTrainedModel):
+class LEDDecoderPosPreDec(LEDPreTrainedModel):
     def __init__(self, config: LEDConfig, embed_tokens: Optional[nn.Embedding] = None):
         super().__init__(config)
         self.dropout = config.dropout
@@ -191,7 +191,7 @@ class LEDDecoderPatched(LEDPreTrainedModel):
         )
 
 
-class LEDModelPatched(LEDPreTrainedModel):
+class LEDModelPosPreDec(LEDPreTrainedModel):
     def __init__(self, config: LEDConfig):
         super().__init__(config)
 

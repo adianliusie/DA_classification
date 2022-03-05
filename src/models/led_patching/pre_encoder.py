@@ -8,7 +8,7 @@ from transformers.models.led.modeling_led import _expand_mask
 # All lines added have the tag:    'line/block/method added al826'
 #^the ordering of above is in the order of execution, not line number
 
-class LEDEncoderUttEncode(LEDEncoder):
+class LEDEncoderPosPreEnc(LEDEncoder):
     """ patched LED encoder that uses utterance positional encoding at the encoder"""
     
     #>>> Methods added al826 #############################################################

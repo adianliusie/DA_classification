@@ -1,8 +1,8 @@
 import torch
 import torch.nn as nn
-from .led_patching import (LEDEncoderUttEncode, LEDModelPatched, 
-                           LEDDecoderPatched, 
-                           LEDModelAlpha)
+from .led_patching import (LEDEncoderPosPreEnc, LEDModelPosPostEnc, 
+                           LEDDecoderPosPreDec, LEDModelPosPreDec)
+from transformers.models.led.modeling_led import LEDLearnedPositionalEmbedding
 
 class TransformerHead(torch.nn.Module):
     """wrapper where a classification head is added to trans"""
@@ -67,9 +67,10 @@ class Seq2SeqWrapper(torch.nn.Module):
         trans.pad_idx    = num_class+2
         trans.num_tokens = num_class+3
 
-        #updating config details    
+        #updating config details
         transformer.config.vocab_size = trans.num_tokens 
-                    #^bad as this attr for both encoder and decoder
+        #^a bit hacky as this attr is for both encoder and decoder
+        
         transformer.config.decoder_start_token_id = trans.start_idx
 
         #reducing embedding matrix to new decoder vocab
@@ -87,35 +88,53 @@ class Seq2SeqWrapper(torch.nn.Module):
         #add Seq2SeqWrapper as a base class
         trans_cls = transformer.__class__ 
         transformer.__class__ = type(cls.__name__, (trans_cls, cls), {})
-        return transformer 
+        return transformer
 
     def get_embeds(self, input_ids):
         """ gets encoder embeddings for given ids"""
         embeds = self.model.encoder.embed_tokens(input_ids)
         return embeds
 
-    def set_setting(self, mode:str):
-        if mode == None:
-            print('using baseline seq2seq set up')
-
-        if mode == 'pre_encoder':
-            print('adding utterance embeddings BEFORE encoder')
+    def reset_encoder_pos(self):
+        self.model.encoder.embed_positions = \
+            LEDLearnedPositionalEmbedding(
+                self.model.encoder.max_source_positions,
+                self.model.config.d_model,
+            )        
+    
+    def reset_decoder_pos(self):
+        self.model.decoder.embed_positions = \
+            LEDLearnedPositionalEmbedding(
+                self.model.decoder.max_target_positions,
+                self.model.config.d_model,
+            )
+                
+    def set_setting(self, settings:list, dir_obj=None):   
+        if dir_obj == None: 
+            dir_obj = type('redirects_log_to_print', (), {'log':print})
+            
+        if 'pre_encoder' in settings:
+            dir_obj.log('adding utterance embeddings BEFORE encoder')
             self.model.encoder.__class__ = LEDEncoderUttEncode
             decoder_pos_embedding = self.model.decoder.embed_positions
             self.model.encoder.set_up(embeddings=decoder_pos_embedding,
                                       sep_token=2)
-        elif mode == 'post_encoder': 
-            print('adding utterance embeddings AFTER encoder')
-            self.model.__class__ = LEDModelAlpha
+        elif 'post_encoder' in settings: 
+            dir_obj.log('adding utterance embeddings AFTER encoder')
+            self.model.__class__ = LEDDecoderPosPreDec
 
-        elif mode == 'pre_decoder':
+        elif 'pre_decoder' in settings:
             print('adding word embeddings to decoder')
-            self.model.__class__ = LEDModelPatched
-            self.model.decoder.__class__ = LEDDecoderPatched
-                
-        else:
-            raise ValueError('Invalid system argument')
-
+            self.model.__class__ = LEDModelPosPreDec
+            self.model.decoder.__class__ = LEDDecoderPosPreDec  
+   
+        if 'reset_enc_pos' in settings:
+            dir_obj.log('resetting encoder positional embeddings')
+            self.reset_encoder_pos()
+            
+        if 'reset_dec_pos' in settings:
+            dir_obj.log('resetting decoder positional embeddings')
+            self.reset_decoder_pos()
             
             
             

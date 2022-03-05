@@ -35,8 +35,7 @@ class EvalHandler(TrainHandler):
 
         #prepare data
         eval_data = self.C.prepare_data(path=args.test_path, 
-                                        lim=args.lim, 
-                                        label_path=args.label_path)
+                                        lim=args.lim)
         eval_batches = self.batcher(eval_data, 
                                     bsz=args.bsz, 
                                     shuf=False)
@@ -65,14 +64,14 @@ class EvalHandler(TrainHandler):
         
         logger = np.zeros(5)
         for conv in tqdm(eval_convs):
-            label_seq  = conv.labels.tolist()
             pred_seq   = self.model_free(conv).tolist()
-            
-            #if batch has to be squeezed
-            if len(label_seq) == 1: 
-                pred_seq  = pred_seq[0]
-                label_seq = label_seq[0]
+            label_seq  = conv.labels.tolist()
 
+            #if batch has to be squeezed as setting is seq2seq
+            if len(label_seq) == 1: 
+                pred_seq  = pred_seq[0][1:]
+                label_seq = label_seq[0]
+                
             logger[:4] += Levenshtein.wer(pred_seq, label_seq)
             logger[4]  += len(label_seq)
             
@@ -80,7 +79,8 @@ class EvalHandler(TrainHandler):
               f"replace:{logger[1]/logger[4]:.3f}  ",
               f"inserts: {logger[2]/logger[4]:.3f}  ",
               f"deletion: {logger[3]/logger[4]:.3f}")
-        
+    
+    @no_grad
     def model_free(self, batch):
         if self.mode == 'seq2seq':
             max_len = config.debug_len if config.debug else 500
@@ -170,7 +170,7 @@ class EvalHandler(TrainHandler):
         conv = self.C.prepare_data(path=args.test_path)[conv_num]
         conv = self.batcher([conv], bsz=1, shuf=False)[0]        
         
-        if free: conv.labels = self.model_free(conv)
+        if free: conv.labels = self.model_free(conv)[:,1:] #remove [CLS]
 
         output = self.model(input_ids=conv.ids,
                             attention_mask=conv.mask, 

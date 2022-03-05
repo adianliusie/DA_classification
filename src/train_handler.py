@@ -51,6 +51,7 @@ class TrainHandler:
         self.model = make_model(system = args.system, 
                                 mode = args.mode,
                                 num_labels = args.num_labels, 
+                                dir_obj=self.dir,
                                 eos_tok = self.C.tokenizer.eos_token_id,
                                 system_args = args.system_args)
 
