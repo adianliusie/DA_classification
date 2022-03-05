@@ -67,7 +67,7 @@ class TrainHandler:
                                        steps=steps,
                                        mode=args.sched)
 
-        best_metric = 0
+        best_epoch = (-1, 10000, 0)
         for epoch in range(args.epochs):
             logger = np.zeros(3)
             self.model.train()
@@ -118,13 +118,13 @@ class TrainHandler:
                    
                 loss = logger[0]/k
                 acc = logger[1]/logger[2]
-                self.dir.log(f'\n DEV {epoch:<3}   loss:{loss:.3f}   ',
-                             f'acc:{acc:.3f}')
+                self.dir.log(f'{epoch:<3} DEV    LOSS:{loss:.3f}  ',
+                             f'ACC:{acc:.3f} \n')
                 self.dir.update_curve('dev', epoch, loss, acc)
 
-                if acc > best_metric:
+                if acc > best_epoch[2]:
                     self.save_model()
-                    best_metric = acc
+                    best_epoch = (epoch, loss, acc)
 
             #update scheduler if step with each epoch
             if args.sched == 'step': 
@@ -132,7 +132,11 @@ class TrainHandler:
           
         if not args.dev_path: self.save_model()
         else:                 self.load_model()
-
+        
+        self.dir.log(f'epoch {best_epoch[0]}  ',
+                     f'loss: {best_epoch[1]:.3f}  ',
+                     f'acc: {best_epoch[2]:.3f}')
+        
     @toggle_grad
     def model_output(self, batch):
         """flexible method for dealing with different set ups. 

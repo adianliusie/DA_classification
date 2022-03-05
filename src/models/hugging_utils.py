@@ -28,7 +28,7 @@ def get_transformer(system):
     elif system ==    'roberta': transformer = RobertaModel.from_pretrained('roberta-base', return_dict=True)
     elif system ==   'big_bird': transformer = BigBirdModel.from_pretrained('google/bigbird-roberta-base', return_dict=True)
     elif system == 'longformer': transformer = LongformerModel.from_pretrained("allenai/longformer-base-4096", return_dict=True)
-    elif system == 'bart':       transformer = BartForConditionalGeneration.from_pretrained('facebook/bart-base',return_dict=True)
+    elif system ==       'bart': transformer = BartForConditionalGeneration.from_pretrained('facebook/bart-base',return_dict=True)
     elif 'led' in system:        transformer = get_led_transformer(system)
     return transformer
 
