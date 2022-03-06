@@ -33,20 +33,25 @@ def get_transformer(system):
     return transformer
 
 def get_led_transformer(system):
-    "handler that creates all LED models"
-    assert system in ['led', 'led_keep_dec', 'led_rand', 'led_simple_dec'], "invalid led setting given"
-    
+    "handler that creates all LED models"    
     model = LEDForConditionalGeneration.from_pretrained("allenai/led-base-16384", return_dict=True)
     enc_pos, dec_pos = model.led.encoder.embed_positions, model.led.decoder.embed_positions   
 
-    if system   == 'led_rand':
-        model = LEDForConditionalGeneration(model.config) 
-    elif system == 'led_simple_dec':
-        model.config.decoder_layers = 1
-        model.led.decoder = LEDDecoder(model.config)
-    elif system != 'led_keep_dec':
+    if system   == 'led': pass
+    elif system == 'led_rand':
+        model = LEDForConditionalGeneration(model.config)    
+    elif system == 'led_dec_rand':
         model.led.decoder = LEDDecoder(model.config) 
+    elif 'led_simple_' in system:
+        n = int(system[-1])
+        model.config.decoder_layers = n
+        model.led.decoder.layers = model.led.decoder.layers[:n]
+        if 'led_simple_rand_' in system:
+            LEDDecoder(model.config)
     
+    else:
+        raise ValueError("invalid LED setting provided")
+
     #All models will keep the learned pos embeddings, whis can be reset in the following wrapper class
     model.led.encoder.embed_positions, model.led.decoder.embed_positions = enc_pos, dec_pos
 

@@ -118,7 +118,7 @@ class TrainHandler:
                    
                 loss = logger[0]/k
                 acc = logger[1]/logger[2]
-                self.dir.log(f'{epoch:<3} DEV    LOSS:{loss:.3f}  ',
+                self.dir.log(f'{epoch:<3} DEV     LOSS:{loss:.3f}  ',
                              f'ACC:{acc:.3f} \n')
                 self.dir.update_curve('dev', epoch, loss, acc)
 
@@ -126,6 +126,10 @@ class TrainHandler:
                     self.save_model()
                     best_epoch = (epoch, loss, acc)
 
+                ##Testing
+                if epoch == best_epoch[0]+5:
+                    break
+                
             #update scheduler if step with each epoch
             if args.sched == 'step': 
                 scheduler.step()
