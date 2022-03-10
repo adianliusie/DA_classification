@@ -21,9 +21,48 @@ class EvalHandler(TrainHandler):
     """"base class for running all sequential sentence 
         evaluation and analysis on trained models"""
     
-    def __init__(self, exp_name:str):
-        self.dir = DirManager.load_dir(exp_name)
+    def __init__(self, exp_name:str, hpc:bool=False):
+        self.dir = DirManager.load_dir(exp_name, hpc)
 
+    def set_up(self, args):
+        #load training arguments and adding to args
+        t_args = self.dir.load_args('train_args')
+        args = join_namespace(args, t_args)
+        self.mode = args.mode
+        
+        #load final model
+        if not hasattr(self, 'model'):
+            self.model = make_model(system=args.system, 
+                                    mode=args.mode,
+                                    num_labels=args.num_labels, 
+                                    system_args=args.system_args)
+            self.load_model()
+            self.model.eval()
+
+        #conversation processing
+        self.C = ConvHandler(label_path=args.label_path, 
+                             system=args.system, 
+                             punct=args.punct, 
+                             action=args.action, 
+                             hes=args.hes, 
+                             tqdm_disable=True)
+        
+        self.batcher = Batcher(mode=args.mode, 
+                               num_labels=args.num_labels,
+                               max_len=args.max_len, 
+                               mode_args=args.mode_args)
+
+        #get start, pad and end token for decoder
+        if self.mode == 'seq2seq':
+            self.decoder_start = self.model.start_idx
+            self.decoder_end   = self.model.end_idx
+            self.decoder_pad   = self.model.pad_idx
+            
+        #set to device
+        self.device = args.device
+        self.to(self.device)
+        return args
+    
     ######  Methods For Dialogue Act Classification  ##########
     
     @no_grad
@@ -101,6 +140,9 @@ class EvalHandler(TrainHandler):
         
         return pred
         
+    ######  Methods For Interpretability and Analysis   ##########
+    
+        
     def saliency(self, args:namedtuple, N:int=50, 
                  conv_num:int=0, utt_num:int=0):
         """ generate saliency maps for predictions """
@@ -164,14 +206,13 @@ class EvalHandler(TrainHandler):
         
         #load training arguments, model, batcher etc.
         args = self.set_up(args)
-        assert self.mode == 'seq2seq', "visualises cross attentions"
         
         #prepare conversation in interest
         conv = self.C.prepare_data(path=args.test_path)[conv_num]
         conv = self.batcher([conv], bsz=1, shuf=False)[0]        
-        
         if free: conv.labels = self.model_free(conv)[:,1:] #remove [CLS]
 
+        #forward pass
         output = self.model(input_ids=conv.ids,
                             attention_mask=conv.mask, 
                             labels=conv.labels, 
@@ -197,43 +238,72 @@ class EvalHandler(TrainHandler):
             x = torch.sum(attentions[:, :, st+1:end+1], dim=-1)
             output[:, :, k] = x
         return output
-                            
-    def set_up(self, args):
-        #load training arguments and adding to args
-        t_args = self.dir.load_args('train_args')
-        args = join_namespace(args, t_args)
-        self.mode = args.mode
-        
-        #load final model
-        if not hasattr(self, 'model'):
-            self.model = make_model(system=args.system, 
-                                    mode=args.mode,
-                                    num_labels=args.num_labels, 
-                                    system_args=args.system_args)
-            self.load_model()
-            self.model.eval()
-
-        #conversation processing
-        self.C = ConvHandler(label_path=args.label_path, 
-                             system=args.system, 
-                             punct=args.punct, 
-                             action=args.action, 
-                             hes=args.hes)
-        
-        self.batcher = Batcher(mode=args.mode, 
-                               num_labels=args.num_labels,
-                               max_len=args.max_len, 
-                               mode_args=args.mode_args)
-
-        #get start, pad and end token for decoder
-        if self.mode == 'seq2seq':
-            self.decoder_start = self.model.start_idx
-            self.decoder_end   = self.model.end_idx
-            self.decoder_pad   = self.model.pad_idx
-            
-        #set to device
-        self.device = args.device
-        self.to(self.device)
-
-        return args
     
+    @no_grad
+    def pos_encodings(self, args, conv_num=0, free=False):
+        
+        #load training arguments, model, batcher etc.
+        args = self.set_up(args)
+
+        #prepare conversation in interest
+        conv = self.C.prepare_data(path=args.test_path)[conv_num]
+        conv = self.batcher([conv], bsz=1, shuf=False)[0]        
+        if free: conv.labels = self.model_free(conv)[:,1:] #remove [CLS]
+
+        output = self.model(input_ids=conv.ids,
+                            attention_mask=conv.mask, 
+                            labels=conv.labels, 
+                            output_hidden_states=True)
+        
+        hid_len = output.decoder_hidden_states[0].size(1)
+        decoder_hidden = [i.squeeze(0) for i in output.decoder_hidden_states]
+        dec_pos = self.model.model.decoder.embed_positions.weight[:hid_len]
+        dec_pos = F.normalize(dec_pos, p=2, dim=1)
+        
+        import seaborn as sns
+        import matplotlib.pyplot as plt
+        
+        sim = torch.matmul(dec_pos, dec_pos.T)
+        sim = sim.cpu().numpy()
+        print(sim[:5, :5])
+        ax = sns.heatmap(sim, cbar=False, square=True)
+        plt.show()
+        
+        for hid_vec in decoder_hidden:
+            hid_vec =  F.normalize(hid_vec, p=2, dim=1)
+            sim = torch.matmul(hid_vec, dec_pos.T)
+            sim = sim.cpu().numpy()
+
+            ax = sns.heatmap(sim, cbar=False, square=True)
+            plt.show()
+            
+        #reduce size from 1024 to whatever, and show similarity for each layer
+        print(output.decoder_hidden_states[0].shape)
+        print(output.encoder_hidden_states[0].shape)
+
+    @no_grad
+    def position_accuracy(self, args):
+        """calculates accuracy at a position level over eval data"""
+
+        #load training arguments, model, batcher etc.
+        args = self.set_up(args)
+
+        #prepare data
+        eval_data = self.C.prepare_data(path=args.test_path, 
+                                        lim=args.lim)
+        eval_batches = self.batcher.eval_batches(eval_data)
+        
+        #init positionwise accuracy tracker
+        hits, counts = np.zeros(500), np.zeros(500)
+        
+        for k, batch in enumerate(eval_batches, start=1):
+            output = self.model_output(batch)
+            preds = torch.argmax(output.logits, dim=-1).squeeze(0)
+            
+            print(preds.shape)
+            hits[:len(preds)] += (preds==batch.labels).squeeze(0)\
+                                  .cpu().numpy()
+            counts[:len(preds)] += 1
+                
+        return hits, counts
+        

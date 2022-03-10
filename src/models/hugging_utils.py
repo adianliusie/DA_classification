@@ -42,11 +42,11 @@ def get_led_transformer(system):
         model = LEDForConditionalGeneration(model.config)    
     elif system == 'led_dec_rand':
         model.led.decoder = LEDDecoder(model.config) 
-    elif 'led_simple_' in system:
+    elif 'led_simple_' in system: #eg led_simple_1
         n = int(system[-1])
         model.config.decoder_layers = n
         model.led.decoder.layers = model.led.decoder.layers[:n]
-        if 'led_simple_rand_' in system:
+        if 'led_simple_rand_' in system:  #eg led_simple_rand_1
             LEDDecoder(model.config)
     
     else:

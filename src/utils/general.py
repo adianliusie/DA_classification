@@ -2,6 +2,8 @@ from typing import List, Tuple
 from collections import namedtuple
 import copy
 import json
+import subprocess
+import os
 
 def load_json(path:str)->dict:
     with open(path) as jsonFile:
@@ -32,3 +34,16 @@ def join_namespace(args_1:namedtuple, args_2:namedtuple):
         if k not in args_1.__dict__:
             args_1.__dict__[k]=v
     return args_1
+
+def download_hpc_model(model_name:str):
+    """CMD to copy model from hpc to airstack"""    
+    
+    hpc_path = 'al826@login-gpu.hpc.cam.ac.uk:/home/al826/rds/hpc-work'\
+             +f'/2022/DA_classification/trained_models/{model_name}' 
+    cued_path = '/home/alta/Conversational/OET/al826/2022/seq_cls/'\
+              +f'trained_models/hpc/{model_name}'
+    
+    if not os.path.exists(cued_path):
+        subprocess.run(['scp', '-r', hpc_path, cued_path])
+        print("Downloading HPC Models!")
+download_hpc_model('arch/led_full')

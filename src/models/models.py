@@ -136,28 +136,3 @@ class Seq2SeqWrapper(torch.nn.Module):
             dir_obj.log('resetting decoder positional embeddings')
             self.reset_decoder_pos()
             
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            

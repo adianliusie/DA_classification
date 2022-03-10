@@ -46,7 +46,7 @@ class TrainHandler:
         self.batcher = Batcher(mode=args.mode, 
                                num_labels=args.num_labels,
                                max_len=args.max_len, 
-                               mode_args=args.mode_args)
+                               system_args=args.system_args)
         
         self.model = make_model(system = args.system, 
                                 mode = args.mode,

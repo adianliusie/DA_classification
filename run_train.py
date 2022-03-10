@@ -21,7 +21,6 @@ parser.add_argument('--num_labels', default=43,      type=str,  help='')
 parser.add_argument('--system',      default='led',     type=str,  help='select system (e.g. bert, roberta etc.)')
 parser.add_argument('--mode',        default='seq2seq', type=str,  help='select model mode (seq2seq, context)')
 parser.add_argument('--system_args', default=None,      type=str,  help='select system arguments',          nargs='+')
-parser.add_argument('--mode_args',   default=(0,0),     type=int,  help='select set_up arguments for mode', nargs=2)
 
 parser.add_argument('--lim',     default=None,  type=int,   help='size of data subset to use (for debugging)')
 parser.add_argument('--punct',   action='store_true',       help='whether punctuation should be filtered')

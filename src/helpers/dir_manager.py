@@ -8,9 +8,8 @@ from types import SimpleNamespace
 from typing import Callable
 from collections import namedtuple
 
-from ..utils import load_json
+from ..utils import load_json, download_hpc_model
 from ..config import config
-
 
 BASE_DIR = f'{config.base_dir}/trained_models'
 
@@ -75,9 +74,14 @@ class DirManager:
         return f'{BASE_DIR}/{self.exp_name}'
 
     @classmethod
-    def load_dir(cls, exp_name:str)->'DirManager':
+    def load_dir(cls, exp_name:str, hpc=False)->'DirManager':
         dir_manager = cls.__new__(cls)
-        dir_manager.exp_name = exp_name
+        if hpc: 
+            dir_manager.exp_name = 'hpc/'+exp_name
+            download_hpc_model(exp_name)
+        else:
+            dir_manager.exp_name = exp_name
+
         return dir_manager
     
     def load_args(self, name:str)->SimpleNamespace:

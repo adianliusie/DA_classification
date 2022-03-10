@@ -38,8 +38,8 @@ class Conversation:
         return self.utts[k]
 
 class ConvHandler:    
-    def __init__(self, label_path:str=None, system:str=None, 
-                 punct:bool=False, action:bool=False, hes:bool=False):
+    def __init__(self, label_path=None, system=None, punct=False,
+                 action=False, hes=False, tqdm_disable=False):
         """ Initialises the Conversation helper """
         if system:
             self.system = system
@@ -53,7 +53,8 @@ class ConvHandler:
             self.label_dict = {int(k):v for k, v in label_dict.items()}
         
         self.label_to_tok = None
-
+        self.tqdm_disable = tqdm_disable
+        
     def prepare_data(self, path:str, lim:int=None)->List[Conversation]:
         """ Given path, will load and process data for downstream tasks """
         # if json, convert data to Conversation object used by system
@@ -76,7 +77,7 @@ class ConvHandler:
     
     def tok_convs(self, data:List[Conversation]):
         """ generates tokenized ids for each utterance in Conversation """
-        for conv in tqdm(data):
+        for conv in tqdm(data, disable=self.tqdm_disable):
             for utt in conv:
                 utt.ids = self.tokenizer(utt.text).input_ids
     

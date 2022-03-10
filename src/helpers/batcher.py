@@ -9,14 +9,14 @@ class Batcher():
     """class that creates batches for training/eval"""
     
     def __init__(self, mode:'str', num_labels:int=None, 
-                 max_len:int=None, mode_args:tuple=None):
+                 max_len:int=None, system_args:tuple=None):
         self.mode = mode
         self.max_len = max_len
         self.device = torch.device('cpu')
         self.num_labels = num_labels
         
         if mode == 'context': 
-            self.past, self.fut = mode_args
+            self.past, self.fut = int(system_args[0]), int(system_args[1])
             self.conv_prep = self._prep_context
         else:                 
             self.conv_prep = self._prep_conv_whole
