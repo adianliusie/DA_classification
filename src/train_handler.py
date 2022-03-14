@@ -161,8 +161,12 @@ class TrainHandler:
                    )
 
         if self.mode == 'context':
-            y = self.model(input_ids=batch.ids, 
-                           attention_mask=batch.mask)
+            if True:
+                y = self.model(input_ids=batch.ids, 
+                               attention_mask=batch.mask,
+                               token_type_ids=batch.spkr_ids)
+            #y = self.model(input_ids=batch.ids, 
+            #               attention_mask=batch.mask)            
             loss = F.cross_entropy(y, batch.labels)
 
         hits = torch.argmax(y, dim=-1) == batch.labels

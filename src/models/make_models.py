@@ -1,6 +1,6 @@
 import torch
 
-from .models import TransformerHead, Seq2SeqWrapper, SequenceTransformer
+from .model_src import TransformerHead, Seq2SeqWrapper, SequenceTransformer
 from .hugging_utils import get_transformer
 
 def make_model(system, mode:str, num_labels:int=None, dir_obj=None, 
@@ -20,9 +20,10 @@ def make_model(system, mode:str, num_labels:int=None, dir_obj=None,
             model.set_setting(system_args, dir_obj=dir_obj)
 
     if mode == 'context':
-        dir_obj.log('using context set up')
         model = TransformerHead(transformer, 
                                 num_labels)
+        dir_obj.log('using basic context set up')
+
     if mode == 'encoder':
         dir_obj.log('using transformer encoder set up')
         model = SequenceTransformer(transformer, 

@@ -63,6 +63,7 @@ class ConvHandler:
             data = [Conversation(conv) for conv in raw_data]
         
         self.clean_text(data)
+        self.get_speaker_ids(data)
         if lim: data = data[:lim]
         if self.system:     self.tok_convs(data)  
         if self.label_dict: self.get_label_names(data)
@@ -87,6 +88,14 @@ class ConvHandler:
             for utt in conv:
                 utt.label_name = self.label_dict[utt.label]
                 
+    def get_speaker_ids(self, data:List[Conversation]):
+        speakers = set([utt.speaker for conv in data for utt in conv])
+        self.speaker_id_dict = {s:k for k, s in enumerate(speakers)}
+        assert len(speakers)==2, "speaker codes have gone wrong"
+        for conv in data:
+            for utt in conv:
+                utt.spkr_id = self.speaker_id_dict[utt.speaker]
+                        
     def __getitem__(self, x:str):
         """ returns conv with a given conv_id if exists in dataset """
         for conv in self.data:

@@ -50,7 +50,7 @@ class EvalHandler(TrainHandler):
         self.batcher = Batcher(mode=args.mode, 
                                num_labels=args.num_labels,
                                max_len=args.max_len, 
-                               mode_args=args.mode_args)
+                               system_args=args.system_args)
 
         #get start, pad and end token for decoder
         if self.mode == 'seq2seq':
@@ -81,13 +81,46 @@ class EvalHandler(TrainHandler):
         logger = np.zeros(3)
         for k, batch in enumerate(eval_batches, start=1):
             output = self.model_output(batch)
+            
+            if False:
+                print(torch.argmax(output.logits.squeeze(0), -1).tolist())
+                return None
             logger += [output.loss.item(), 
                        output.hits, 
                        output.num_preds]
-        
+            
+        loss, acc = logger[0]/k, logger[1]/logger[2]
+        print(f'loss {loss:.3f}   acc {acc:.3f}')
+        return (loss, acc)
+    
+    #TEMP METHOD PLEASE DELETE IN FUTURE
+    @no_grad
+    def eval_debug(self, args:namedtuple):
+        args = self.set_up(args)
+
+        eval_data = self.C.prepare_data(path=args.test_path, 
+                                        lim=args.lim)
+        eval_batches = self.batcher(eval_data, 
+                                    bsz=args.bsz, 
+                                    shuf=False)
+        logger = np.zeros(5)
+        for k, batch in enumerate(eval_batches, start=1):
+            output = self.model_output(batch)
+            
+            pred_seq = torch.argmax(output.logits.squeeze(0), -1).tolist()
+            label_seq  = batch.labels[0].tolist()
+            logger[:4] += Levenshtein.wer(pred_seq, label_seq)
+            logger[4]  += len(label_seq)
+            
+            
         print(f'loss {logger[0]/k:.3f}  ',
               f'acc {logger[1]/logger[2]:.3f}')
-        
+          
+        print(f"WER:{logger[0]/logger[4]:.3f}  ",
+              f"replace:{logger[1]/logger[4]:.3f}  ",
+              f"inserts: {logger[2]/logger[4]:.3f}  ",
+              f"deletion: {logger[3]/logger[4]:.3f}")
+                       
     @no_grad
     def evaluate_free(self, args:namedtuple):
         """ evaluating model in free running set up
@@ -105,20 +138,26 @@ class EvalHandler(TrainHandler):
         for conv in tqdm(eval_convs):
             pred_seq   = self.model_free(conv).tolist()
             label_seq  = conv.labels.tolist()
-
+            
             #if batch has to be squeezed as setting is seq2seq
             if len(label_seq) == 1: 
                 pred_seq  = pred_seq[0][1:]
                 label_seq = label_seq[0]
+            
+            if False:
+                e, s, i, d = Levenshtein.wer(pred_seq, label_seq)
+                #print(f'E:{e}, S:{s}, I:{i}, D:{d}, len:{len(label_seq)} acc:{e/len(label_seq)}')
+                print(pred_seq)
+                return None
                 
             logger[:4] += Levenshtein.wer(pred_seq, label_seq)
             logger[4]  += len(label_seq)
             
-        print(f"WER:{logger[0]/logger[4]:.3f}  ",
-              f"replace:{logger[1]/logger[4]:.3f}  ",
-              f"inserts: {logger[2]/logger[4]:.3f}  ",
-              f"deletion: {logger[3]/logger[4]:.3f}")
-    
+        wer, s, i, d = [logger[i]/logger[4] for i in range(4)]
+        print(f"WER: {wer:.3f}  subs: {s:.3f}  ",
+              f"ins: {i  :.3f}  dels: {d:.3f}")
+        return (wer, s, i, d)
+              
     @no_grad
     def model_free(self, batch):
         if self.mode == 'seq2seq':
