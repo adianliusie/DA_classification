@@ -4,7 +4,6 @@ from tqdm import tqdm
 
 import json
 import re 
-import os
 
 from ..utils import load_json, flatten, load_list
 from ..models import get_tokenizer
@@ -39,15 +38,19 @@ class Conversation:
         return self.utts[k]
 
 class ConvHandler:    
-    def __init__(self, system=None, punct=False,
+    def __init__(self, label_path=None, system=None, punct=False,
                  action=False, hes=False, tqdm_disable=False):
         """ Initialises the Conversation helper """
-        
-        self.system = system
         if system:
+            self.system = system
             self.tokenizer = get_tokenizer(system)
             
         self.cleaner = TextCleaner(punct=punct, action=action, hes=hes)
+        
+        self.label_dict = None
+        if label_path:
+            label_dict = load_json(label_path)
+            self.label_dict = {int(k):v for k, v in label_dict.items()}
         
         self.label_to_tok = None
         self.tqdm_disable = tqdm_disable
@@ -55,12 +58,9 @@ class ConvHandler:
     def prepare_data(self, path:str, lim:int=None)->List[Conversation]:
         """ Given path, will load and process data for downstream tasks """
         # if json, convert data to Conversation object used by system
-        
-        path = f'{config.base_dir}/data/{path}'
         if path.split('.')[-1] == 'json':
             raw_data = load_json(path)
             data = [Conversation(conv) for conv in raw_data]
-        self.load_label_info(path)
         
         self.clean_text(data)
         self.get_speaker_ids(data)
@@ -69,15 +69,6 @@ class ConvHandler:
         if self.label_dict: self.get_label_names(data)
         return data
     
-    def load_label_info(self, path):
-        if not hasattr(self, 'label_dict'):
-            #replace filename before extension with `labels'
-            label_path = re.sub(r'\/(\w*?)\.', '/labels.', path)
-            if os.path.isfile(label_path): 
-                label_dict = load_json(label_path)
-                self.label_dict = {int(k):v for k, v in label_dict.items()}
-               
-        
     def clean_text(self, data:List[Conversation]):
         """ processes text depending on arguments. E.g. punct=True filters
         punctuation, action=True filters actions etc."""

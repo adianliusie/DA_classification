@@ -25,7 +25,7 @@ def toggle_grad(func:Callable):
 def make_optimizer(opt_name:str, params, lr:float):
     if opt_name == 'adam':
         optimizer = torch.optim.Adam(params, lr=lr)
-    elif mode == 'adamw':
+    elif opt_name == 'adamw':
         optimizer = torch.optim.AdamW(params, lr=lr)
     return optimizer 
 

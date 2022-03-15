@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from typing import Tuple
 from tqdm.notebook import tqdm
 
-from .helpers import ConvHandler, Batcher, DirManager
+from .helpers import ConvHandler, make_batcher, DirManager
 from .utils import (no_grad, toggle_grad, make_optimizer, 
                     make_scheduler)
 from .models import make_model
@@ -30,9 +30,9 @@ class TrainHandler:
         
         self.dir.save_args('train_args', args)
         self.mode = args.mode
+        self.system_args = args.system_args
         
-        self.C = ConvHandler(label_path=args.label_path, 
-                             system=args.system, 
+        self.C = ConvHandler(system=args.system, 
                              punct=args.punct, 
                              action=args.action, 
                              hes=args.hes)
@@ -43,10 +43,10 @@ class TrainHandler:
             dev = self.C.prepare_data(path=args.dev_path, 
                                       lim=args.lim)
 
-        self.batcher = Batcher(mode=args.mode, 
-                               num_labels=args.num_labels,
-                               max_len=args.max_len, 
-                               system_args=args.system_args)
+        self.batcher = make_batcher(mode=args.mode, 
+                                    max_len=args.max_len, 
+                                    formatting=args.formatting,
+                                    system_args=args.system_args)
         
         self.model = make_model(system = args.system, 
                                 mode = args.mode,
@@ -71,9 +71,8 @@ class TrainHandler:
         for epoch in range(args.epochs):
             logger = np.zeros(3)
             self.model.train()
-            train_batches = self.batcher(train, 
-                                         bsz=args.bsz, 
-                                         shuf=True)
+            train_batches = self.batcher.seq_cls_batches(
+                                train, bsz=args.bsz, shuf=True)
             
             for k, batch in enumerate(train_batches, start=1):
                 #forward and loss calculation
@@ -107,9 +106,8 @@ class TrainHandler:
                 logger = np.zeros(3)
                 self.model.eval()
                 
-                dev_batches = self.batcher(dev, 
-                                           bsz=args.bsz, 
-                                           shuf=False)
+                dev_batches = self.batcher.seq_cls_batches(
+                                dev, bsz=args.bsz, shuf=False)
                 
                 for k, batch in enumerate(dev_batches, start=1):
                     output = self.model_output(batch, no_grad=True)
@@ -146,28 +144,28 @@ class TrainHandler:
         """flexible method for dealing with different set ups. 
            Returns loss and accuracy statistics"""
         
+        model_inputs = {'input_ids':batch.ids, 
+                        'attention_mask':batch.mask}
+        if 'spkr_embed' in self.system_args:
+            model_inputs['token_type_ids'] = batch.spkr_ids
+        if 'utt_embed' in self.system_args:
+            model_inputs['utt_embed_ids'] = batch.utt_ids
         if self.mode == 'seq2seq':
-            output = self.model(input_ids=batch.ids, 
-                                attention_mask=batch.mask, 
-                                labels=batch.labels)
+            model_inputs['labels'] = batch.labels
+            
+        if self.mode == 'context':
+            y = self.model(**model_inputs)           
+            loss = F.cross_entropy(y, batch.labels)
+
+        elif self.mode == 'encoder':
+            y = self.model(**model_inputs)
+            loss = F.cross_entropy(
+                        y.view(-1, y.size(2)), batch.labels.view(-1))
+
+        elif self.mode == 'seq2seq':
+            output = self.model(**model_inputs)
             loss = output.loss
             y    = output.logits
-
-        if self.mode == 'encoder':
-            y = self.model(input_ids=batch.ids, 
-                           attention_mask=batch.mask)
-            loss = F.cross_entropy(
-                        y.view(-1, y.size(2)), batch.labels.view(-1)
-                   )
-
-        if self.mode == 'context':
-            if True:
-                y = self.model(input_ids=batch.ids, 
-                               attention_mask=batch.mask,
-                               token_type_ids=batch.spkr_ids)
-            #y = self.model(input_ids=batch.ids, 
-            #               attention_mask=batch.mask)            
-            loss = F.cross_entropy(y, batch.labels)
 
         hits = torch.argmax(y, dim=-1) == batch.labels
         hits = torch.sum(hits[batch.labels != -100]).item()
